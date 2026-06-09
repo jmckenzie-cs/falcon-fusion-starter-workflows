@@ -8,9 +8,9 @@ Four ready-to-import Fusion SOAR workflows for customers getting started with Fa
 
 | File | Trigger | Purpose |
 |------|---------|---------|
-| `01-cloud-risk-critical-alert.yaml` | Cloud risk response event | Email on Critical/High compound cloud risks |
-| `02-iom-detection-triage.yaml` | IOM detection event | Email on new cloud misconfigurations (Medium+) |
-| `03-waf-iom-detection-alert.yaml` | IOM detection event | Email on WAF misconfiguration IOMs (AWS WAFv2, Azure App GW WAF, etc.) |
+| `01-cloud-risk-critical-alert.yaml` | Cloud risk response | Email on Critical/High compound cloud risks |
+| `02-iom-detection-triage.yaml` | Cloud security assessment | Email on new cloud misconfigurations (Medium+) |
+| `03-waf-iom-detection-alert.yaml` | Cloud security assessment | Email on WAF misconfiguration IOMs (AWS WAFv2, Azure App GW WAF, etc.) |
 | `04-cloud-risk-daily-digest.yaml` | Schedule (8 AM UTC daily) | Daily cloud security review checklist |
 
 ---
@@ -31,8 +31,9 @@ Each file contains a `SETUP REQUIRED` section in its `description:` block. At mi
 
 - Replace `@your-company.com` email placeholders with real addresses
   (invalid addresses cause runtime failures — Fusion SOAR does not warn at import time)
-- For `03-waf-threat-detection-alert`: configure your WAF data connector in Next-Gen SIEM first,
-  then inspect a live trigger payload to confirm the exact field names for the source filter condition
+- For `03-waf-iom-detection-alert`: verify the WAF service names in the `waf_service_filter`
+  condition match what your Falcon tenant reports — check Cloud Security > Rules and Policies >
+  IOM Rules > Service column
 
 ---
 

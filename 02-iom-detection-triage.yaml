@@ -1,7 +1,7 @@
 name: iom-detection-triage
 description: |
   Triages new Indicator of Misconfiguration (IOM) detections from Falcon Cloud Security.
-  Notifies the cloud security team with full context — rule, resource, account, region —
+  Notifies the cloud security team with full context — rule, service, account, provider —
   so they can investigate and remediate without hunting for details in the console.
 
   IOMs detect individual cloud misconfigurations like open S3 buckets, disabled MFA on
@@ -11,13 +11,19 @@ description: |
     1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
     2. Replace "cloud-sec@your-company.com" in the send_iom_alert step
     3. (Optional) Add a ServiceNow or Jira action after send_iom_alert to auto-create tickets
-    4. Adjust the severity filter — default is medium and above (values are lowercase)
+    4. Adjust the severity filter — default is medium and above
     5. Test with mock data, then Enable
 
-  FIELD PATHS:
-    These are based on the documented /cloud-security-evaluations/entities/ioms/v1
-    API response structure. If any field fails validation, open the workflow canvas,
-    trigger a test execution, and use the Workflow Data panel to copy exact paths.
+  FIELD PATHS (verified via /workflows/combined/triggers/v1 API):
+    The Cloud security assessment trigger exposes Trigger.CloudSecurityAssessment.* fields.
+    Severity values: Critical, High, Medium, Informational (Title Case)
+    CloudProvider values: AWS, Azure, GCP
+    Disposition values vary by policy (typically Passed/Failed/etc.)
+
+  NOTE ON FIELD AVAILABILITY:
+    The Cloud security assessment trigger exposes policy-level information.
+    For deep resource-level details (resource ID, region, ARN), navigate to:
+    Cloud Security > Posture and Compliance > IOM Findings in the Falcon console.
 
   PREREQUISITES:
     - Falcon Cloud Security subscription
@@ -30,20 +36,20 @@ description: |
 provision_on_install: false
 
 trigger:
-    name: IOM detection
-    type: IOM detection
+    name: Cloud security assessment
+    type: Cloud security assessment
     next:
         - check_iom_severity
 
 conditions:
-    # Severity values from the IOM API are lowercase: critical, high, medium, low
+    # Severity values: Critical, High, Medium, Informational (Title Case)
     check_iom_severity:
         next:
             - send_iom_alert
         cel_expression: >
-            data['trigger.evaluation.severity'] == 'critical' ||
-            data['trigger.evaluation.severity'] == 'high' ||
-            data['trigger.evaluation.severity'] == 'medium'
+            data['Trigger.CloudSecurityAssessment.Severity'] == 'Critical' ||
+            data['Trigger.CloudSecurityAssessment.Severity'] == 'High' ||
+            data['Trigger.CloudSecurityAssessment.Severity'] == 'Medium'
         display:
             - IOM severity is medium or above
         else:
@@ -56,28 +62,22 @@ actions:
             to:
                 # ↓ CONFIGURE: Replace with your cloud security team's email address
                 - cloud-sec@your-company.com
-            subject: "[FALCON IOM] ${data['trigger.evaluation.severity']} — ${data['trigger.resource.service']} | ${data['trigger.cloud.provider']} ${data['trigger.cloud.region']}"
+            subject: "[FALCON IOM] ${data['Trigger.CloudSecurityAssessment.Severity']} — ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | ${data['Trigger.CloudSecurityAssessment.CloudProvider']}"
             msg: |
                 Falcon Cloud Security has detected a cloud misconfiguration (IOM).
 
                 ── FINDING DETAILS ──────────────────────────
-                Rule:            ${data['trigger.evaluation.rule.name']}
-                Severity:        ${data['trigger.evaluation.severity']}
-                Status:          ${data['trigger.evaluation.status']}
-                Service:         ${data['trigger.resource.service']}
-                Resource Type:   ${data['trigger.resource.resource_type']}
-                Resource ID:     ${data['trigger.resource.resource_id']}
-                Cloud Provider:  ${data['trigger.cloud.provider']}
-                Cloud Account:   ${data['trigger.cloud.account_id']}
-                Region:          ${data['trigger.cloud.region']}
-                First Detected:  ${data['trigger.evaluation.first_detected']}
-
-                ── RESOURCE CONSOLE LINK ────────────────────
-                ${data['trigger.evaluation.url']}
+                Policy:          ${data['Trigger.CloudSecurityAssessment.PolicyStatement']}
+                Policy ID:       ${data['Trigger.CloudSecurityAssessment.PolicyID']}
+                Severity:        ${data['Trigger.CloudSecurityAssessment.Severity']}
+                Disposition:     ${data['Trigger.CloudSecurityAssessment.Disposition']}
+                Service:         ${data['Trigger.CloudSecurityAssessment.CloudServiceName']}
+                Cloud Provider:  ${data['Trigger.CloudSecurityAssessment.CloudProvider']}
+                AWS Account ID:  ${data['Trigger.CloudSecurityAssessment.AWS.AccountID']}
 
                 ── REMEDIATION GUIDANCE ─────────────────────
                 Open this finding in the Falcon console for step-by-step
-                remediation instructions:
+                remediation instructions and the affected resource details:
 
                 https://falcon.crowdstrike.com/cloud-security/posture
 
@@ -93,11 +93,10 @@ actions:
         properties:
             text_data: >
                 [iom-detection-triage] Alert sent —
-                Rule: ${data['trigger.evaluation.rule.name']} |
-                Severity: ${data['trigger.evaluation.severity']} |
-                Service: ${data['trigger.resource.service']} |
-                Resource: ${data['trigger.resource.resource_id']} |
-                Account: ${data['trigger.cloud.account_id']}
+                Policy: ${data['Trigger.CloudSecurityAssessment.PolicyStatement']} |
+                Severity: ${data['Trigger.CloudSecurityAssessment.Severity']} |
+                Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} |
+                Provider: ${data['Trigger.CloudSecurityAssessment.CloudProvider']}
         version_constraint: ~1
 
     log_iom_skipped:
@@ -105,8 +104,8 @@ actions:
         properties:
             text_data: >
                 [iom-detection-triage] Low severity IOM suppressed —
-                Severity: ${data['trigger.evaluation.severity']} |
-                Service: ${data['trigger.resource.service']}
+                Severity: ${data['Trigger.CloudSecurityAssessment.Severity']} |
+                Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']}
         version_constraint: ~1
 
 output_fields: []

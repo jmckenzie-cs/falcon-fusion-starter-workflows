@@ -11,12 +11,10 @@ description: |
     3. (Optional) Tighten the severity filter to Critical only if alert volume is too high
     4. Test using Fusion SOAR's mock data feature, then Enable
 
-  FIELD PATHS:
-    Based on the /cloud-security-risks/combined/cloud-risks/v1 API response.
-    Cloud Risk trigger fields are flat (not nested like IOM fields).
-    Severity values are UPPERCASE: CRITICAL, HIGH, MEDIUM, LOW
-    If any field fails validation, use the Workflow Data panel in the canvas editor
-    to copy the verified paths from a real execution.
+  FIELD PATHS (verified via /workflows/combined/triggers/v1 API):
+    All Cloud Risk trigger fields use Trigger.CloudRisk.* (PascalCase, capital T).
+    Severity values: Critical, High, Medium, Low (Title Case)
+    Status values: Open, Resolved, Suppressed
 
   PREREQUISITES:
     - Falcon Cloud Security subscription (CNAPP, Proactive, or Cloud Security)
@@ -35,13 +33,13 @@ trigger:
         - check_severity
 
 conditions:
-    # Severity values from the Cloud Risk API are UPPERCASE: CRITICAL, HIGH, MEDIUM, LOW
+    # Severity values: Critical, High, Medium, Low (Title Case)
     check_severity:
         next:
             - send_notification
         cel_expression: >
-            data['trigger.severity'] == 'CRITICAL' ||
-            data['trigger.severity'] == 'HIGH'
+            data['Trigger.CloudRisk.Severity'] == 'Critical' ||
+            data['Trigger.CloudRisk.Severity'] == 'High'
         display:
             - Risk is Critical or High severity
         else:
@@ -54,21 +52,28 @@ actions:
             to:
                 # ↓ CONFIGURE: Replace with your security team's email address
                 - security-team@your-company.com
-            subject: "[FALCON CLOUD RISK] ${data['trigger.severity']}: ${data['trigger.rule_name']}"
+            subject: "[FALCON CLOUD RISK] ${data['Trigger.CloudRisk.Severity']}: ${data['Trigger.CloudRisk.RuleName']}"
             msg: |
                 Falcon Cloud Security has detected a new compound cloud risk.
 
                 ── RISK DETAILS ─────────────────────────────
-                Risk Name:       ${data['trigger.rule_name']}
-                Severity:        ${data['trigger.severity']}
-                Status:          ${data['trigger.status']}
-                Cloud Provider:  ${data['trigger.provider']}
-                Cloud Account:   ${data['trigger.account_id']}
-                Region:          ${data['trigger.asset_region']}
-                Asset Name:      ${data['trigger.asset_name']}
-                Asset ID:        ${data['trigger.asset_id']}
-                Asset Type:      ${data['trigger.asset_type']}
-                First Seen:      ${data['trigger.first_seen']}
+                Risk Name:       ${data['Trigger.CloudRisk.RuleName']}
+                Severity:        ${data['Trigger.CloudRisk.Severity']}
+                Status:          ${data['Trigger.CloudRisk.Status']}
+                Cloud Provider:  ${data['Trigger.CloudRisk.Asset.CloudProvider']}
+                Cloud Account:   ${data['Trigger.CloudRisk.Asset.CloudAccountId']}
+                Account Name:    ${data['Trigger.CloudRisk.Asset.CloudAccountName']}
+                Region:          ${data['Trigger.CloudRisk.Asset.Region']}
+                Asset Name:      ${data['Trigger.CloudRisk.Asset.Name']}
+                Asset ID:        ${data['Trigger.CloudRisk.Asset.ID']}
+                Asset Type:      ${data['Trigger.CloudRisk.Asset.Type']}
+                First Seen:      ${data['Trigger.CloudRisk.FirstSeen']}
+
+                ── RISK DESCRIPTION ─────────────────────────
+                ${data['Trigger.CloudRisk.RuleDescription']}
+
+                ── ASSET CONSOLE LINK ───────────────────────
+                ${data['Trigger.CloudRisk.Asset.URL']}
 
                 ── WHY THIS MATTERS ─────────────────────────
                 Cloud risks surface dangerous combinations that look low-severity in
@@ -76,10 +81,9 @@ actions:
                 has an over-privileged identity and unrotated credentials.
 
                 ── NEXT STEPS ───────────────────────────────
-                1. Log in to the Falcon console
-                2. Navigate to Cloud Security > Cloud Risks
-                3. Filter by the asset ID above
-                4. Follow the guided remediation steps
+                1. Click the asset console link above to investigate directly
+                2. Navigate to Cloud Security > Cloud Risks for full context
+                3. Follow the guided remediation steps in the Falcon console
 
                 Console: https://falcon.crowdstrike.com/cloud-security/cloud-risks
                 ─────────────────────────────────────────────
@@ -94,10 +98,10 @@ actions:
         properties:
             text_data: >
                 [cloud-risk-critical-alert] Alert sent —
-                Rule: ${data['trigger.rule_name']} |
-                Severity: ${data['trigger.severity']} |
-                Account: ${data['trigger.account_id']} |
-                Asset: ${data['trigger.asset_id']}
+                Rule: ${data['Trigger.CloudRisk.RuleName']} |
+                Severity: ${data['Trigger.CloudRisk.Severity']} |
+                Account: ${data['Trigger.CloudRisk.Asset.CloudAccountId']} |
+                Asset: ${data['Trigger.CloudRisk.Asset.ID']}
         version_constraint: ~1
 
     log_skipped:
@@ -105,8 +109,8 @@ actions:
         properties:
             text_data: >
                 [cloud-risk-critical-alert] Low severity risk suppressed —
-                Rule: ${data['trigger.rule_name']} |
-                Severity: ${data['trigger.severity']}
+                Rule: ${data['Trigger.CloudRisk.RuleName']} |
+                Severity: ${data['Trigger.CloudRisk.Severity']}
         version_constraint: ~1
 
 output_fields: []

@@ -14,7 +14,7 @@ description: |
     5. Test with mock data, then Enable
 
   FINDING YOUR WAF SERVICE NAMES:
-    The resource.service field in IOM events uses short identifiers (e.g. "WAFv2", "ELB").
+    The Trigger.CloudSecurityAssessment.CloudServiceName field uses short identifiers.
     To find the exact values for your registered accounts:
     1. Go to: Cloud Security > Rules and Policies > IOM Rules
     2. Filter the Service column for WAF / WAFv2 / Application Gateway / Front Door
@@ -25,9 +25,10 @@ description: |
     Azure: "ApplicationGateway", "FrontDoor" (exact casing varies)
     GCP:   "CloudArmor" or "Compute" (Cloud Armor policies are under Compute)
 
-  FIELD PATHS:
-    Based on the documented /cloud-security-evaluations/entities/ioms/v1 API response.
-    Nested structure: cloud.*, resource.*, evaluation.*
+  FIELD PATHS (verified via /workflows/combined/triggers/v1 API):
+    The Cloud security assessment trigger exposes Trigger.CloudSecurityAssessment.* fields.
+    Severity values: Critical, High, Medium, Informational (Title Case)
+    CloudProvider values: AWS, Azure, GCP
     If any field fails validation, use the Workflow Data panel in the canvas editor
     to copy the verified paths from a real execution.
 
@@ -43,8 +44,8 @@ description: |
 provision_on_install: false
 
 trigger:
-    name: IOM detection
-    type: IOM detection
+    name: Cloud security assessment
+    type: Cloud security assessment
     next:
         - waf_service_filter
 
@@ -56,25 +57,25 @@ conditions:
         next:
             - check_waf_iom_severity
         cel_expression: >
-            data['trigger.resource.service'].contains('WAF') ||
-            data['trigger.resource.service'].contains('Waf') ||
-            data['trigger.resource.service'] == 'ApplicationGateway' ||
-            data['trigger.resource.service'] == 'FrontDoor' ||
-            data['trigger.resource.service'] == 'CloudArmor' ||
-            data['trigger.resource.service'] == 'FirewallManager'
+            data['Trigger.CloudSecurityAssessment.CloudServiceName'].contains('WAF') ||
+            data['Trigger.CloudSecurityAssessment.CloudServiceName'].contains('Waf') ||
+            data['Trigger.CloudSecurityAssessment.CloudServiceName'] == 'ApplicationGateway' ||
+            data['Trigger.CloudSecurityAssessment.CloudServiceName'] == 'FrontDoor' ||
+            data['Trigger.CloudSecurityAssessment.CloudServiceName'] == 'CloudArmor' ||
+            data['Trigger.CloudSecurityAssessment.CloudServiceName'] == 'FirewallManager'
         display:
             - IOM is for a WAF-related service
         else:
             - log_non_waf_skipped
 
-    # Severity values from the IOM API are lowercase: critical, high, medium, low
+    # Severity values: Critical, High, Medium, Informational (Title Case)
     check_waf_iom_severity:
         next:
             - send_waf_iom_alert
         cel_expression: >
-            data['trigger.evaluation.severity'] == 'critical' ||
-            data['trigger.evaluation.severity'] == 'high' ||
-            data['trigger.evaluation.severity'] == 'medium'
+            data['Trigger.CloudSecurityAssessment.Severity'] == 'Critical' ||
+            data['Trigger.CloudSecurityAssessment.Severity'] == 'High' ||
+            data['Trigger.CloudSecurityAssessment.Severity'] == 'Medium'
         display:
             - IOM severity is medium or above
         else:
@@ -87,26 +88,20 @@ actions:
             to:
                 # ↓ CONFIGURE: Replace with your security team's email address
                 - security-team@your-company.com
-            subject: "[FALCON WAF IOM] ${data['trigger.evaluation.severity']} — ${data['trigger.resource.service']} | ${data['trigger.cloud.provider']} ${data['trigger.cloud.region']}"
+            subject: "[FALCON WAF IOM] ${data['Trigger.CloudSecurityAssessment.Severity']} — ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | ${data['Trigger.CloudSecurityAssessment.CloudProvider']}"
             msg: |
                 Falcon Cloud Security has detected a WAF misconfiguration (IOM).
                 A WAF that is misconfigured or missing leaves web-facing resources
                 unprotected against injection, XSS, and application-layer attacks.
 
                 ── MISCONFIGURATION DETAILS ─────────────────
-                Rule:            ${data['trigger.evaluation.rule.name']}
-                Severity:        ${data['trigger.evaluation.severity']}
-                Status:          ${data['trigger.evaluation.status']}
-                Service:         ${data['trigger.resource.service']}
-                Resource Type:   ${data['trigger.resource.resource_type']}
-                Resource ID:     ${data['trigger.resource.resource_id']}
-                Cloud Provider:  ${data['trigger.cloud.provider']}
-                Cloud Account:   ${data['trigger.cloud.account_id']}
-                Region:          ${data['trigger.cloud.region']}
-                First Detected:  ${data['trigger.evaluation.first_detected']}
-
-                ── RESOURCE CONSOLE LINK ────────────────────
-                ${data['trigger.evaluation.url']}
+                Policy:          ${data['Trigger.CloudSecurityAssessment.PolicyStatement']}
+                Policy ID:       ${data['Trigger.CloudSecurityAssessment.PolicyID']}
+                Severity:        ${data['Trigger.CloudSecurityAssessment.Severity']}
+                Disposition:     ${data['Trigger.CloudSecurityAssessment.Disposition']}
+                Service:         ${data['Trigger.CloudSecurityAssessment.CloudServiceName']}
+                Cloud Provider:  ${data['Trigger.CloudSecurityAssessment.CloudProvider']}
+                AWS Account ID:  ${data['Trigger.CloudSecurityAssessment.AWS.AccountID']}
 
                 ── WHAT THIS MEANS ──────────────────────────
                 The resource above either lacks WAF protection, has WAF configured
@@ -136,11 +131,10 @@ actions:
         properties:
             text_data: >
                 [waf-iom-detection-alert] Alert sent —
-                Rule: ${data['trigger.evaluation.rule.name']} |
-                Service: ${data['trigger.resource.service']} |
-                Severity: ${data['trigger.evaluation.severity']} |
-                Resource: ${data['trigger.resource.resource_id']} |
-                Account: ${data['trigger.cloud.account_id']}
+                Policy: ${data['Trigger.CloudSecurityAssessment.PolicyStatement']} |
+                Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} |
+                Severity: ${data['Trigger.CloudSecurityAssessment.Severity']} |
+                Provider: ${data['Trigger.CloudSecurityAssessment.CloudProvider']}
         version_constraint: ~1
 
     log_low_severity_skipped:
@@ -148,8 +142,8 @@ actions:
         properties:
             text_data: >
                 [waf-iom-detection-alert] Low severity WAF IOM suppressed —
-                Service: ${data['trigger.resource.service']} |
-                Severity: ${data['trigger.evaluation.severity']}
+                Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} |
+                Severity: ${data['Trigger.CloudSecurityAssessment.Severity']}
         version_constraint: ~1
 
     log_non_waf_skipped:
@@ -157,8 +151,8 @@ actions:
         properties:
             text_data: >
                 [waf-iom-detection-alert] IOM skipped — not a WAF service:
-                Service: ${data['trigger.resource.service']} |
-                Severity: ${data['trigger.evaluation.severity']}
+                Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} |
+                Severity: ${data['Trigger.CloudSecurityAssessment.Severity']}
         version_constraint: ~1
 
 output_fields: []

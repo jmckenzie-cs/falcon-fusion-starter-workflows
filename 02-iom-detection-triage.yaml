@@ -1,0 +1,105 @@
+name: iom-detection-triage
+description: |
+  Triages new Indicator of Misconfiguration (IOM) detections from Falcon Cloud Security.
+  Notifies the cloud security team with full context — policy, resource, account, region —
+  so they can investigate and remediate without hunting for details in the console.
+
+  IOMs detect individual cloud misconfigurations like open S3 buckets, disabled MFA on
+  root accounts, unencrypted volumes, publicly exposed RDS instances, and more.
+
+  SETUP REQUIRED:
+    1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
+    2. Replace "cloud-sec@your-company.com" in the send_iom_alert step
+    3. (Optional) Add a ServiceNow or Jira action after send_iom_alert to auto-create tickets
+    4. Adjust the severity filter — default is Medium and above
+    5. Test with mock data, then Enable
+
+  PREREQUISITES:
+    - Falcon Cloud Security subscription
+    - At least one cloud account registered in Falcon Cloud Security
+
+  VERIFIED ACTION IDs:
+    - Send email:  07413ef9ba7c47bf5a242799f59902cc
+    - Print data:  aadbf530e35fc452a032f5f8acaaac2a
+
+provision_on_install: false
+
+trigger:
+    name: IOM detection
+    type: IOM detection
+    next:
+        - check_iom_severity
+
+conditions:
+    check_iom_severity:
+        next:
+            - send_iom_alert
+        cel_expression: >
+            data['trigger.severity'] == 'Critical' ||
+            data['trigger.severity'] == 'High' ||
+            data['trigger.severity'] == 'Medium'
+        display:
+            - IOM severity is Medium or above
+        else:
+            - log_iom_skipped
+
+actions:
+    send_iom_alert:
+        id: 07413ef9ba7c47bf5a242799f59902cc
+        properties:
+            to:
+                # ↓ CONFIGURE: Replace with your cloud security team's email address
+                - cloud-sec@your-company.com
+            subject: "[FALCON IOM] ${data['trigger.severity']} — ${data['trigger.policy_id']} | ${data['trigger.cloud_provider']} ${data['trigger.region']}"
+            msg: |
+                Falcon Cloud Security has detected a cloud misconfiguration (IOM).
+
+                ── FINDING DETAILS ──────────────────────────
+                Policy ID:       ${data['trigger.policy_id']}
+                Severity:        ${data['trigger.severity']}
+                Status:          ${data['trigger.status']}
+                Cloud Provider:  ${data['trigger.cloud_provider']}
+                Cloud Account:   ${data['trigger.cloud_account_id']}
+                Region:          ${data['trigger.region']}
+                Service:         ${data['trigger.service']}
+                Resource ID:     ${data['trigger.resource_id']}
+                Resource Type:   ${data['trigger.resource_type']}
+                First Detected:  ${data['trigger.created_timestamp']}
+
+                ── REMEDIATION GUIDANCE ─────────────────────
+                Open this finding in the Falcon console to view step-by-step
+                remediation instructions specific to this policy:
+
+                Console: https://falcon.crowdstrike.com/cloud-security/posture
+
+                TIP: Use the Policy ID above to search for the finding and
+                filter by Resource ID to go directly to the affected asset.
+
+                ─────────────────────────────────────────────
+                Sent by Falcon Fusion SOAR | iom-detection-triage
+            msg_type: "text"
+        version_constraint: ~1
+        next:
+            - log_iom_alerted
+
+    log_iom_alerted:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        properties:
+            text_data: >
+                [iom-detection-triage] Alert sent —
+                Policy: ${data['trigger.policy_id']} |
+                Severity: ${data['trigger.severity']} |
+                Resource: ${data['trigger.resource_id']} |
+                Account: ${data['trigger.cloud_account_id']}
+        version_constraint: ~1
+
+    log_iom_skipped:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        properties:
+            text_data: >
+                [iom-detection-triage] Low severity IOM suppressed —
+                Policy: ${data['trigger.policy_id']} |
+                Severity: ${data['trigger.severity']}
+        version_constraint: ~1
+
+output_fields: []

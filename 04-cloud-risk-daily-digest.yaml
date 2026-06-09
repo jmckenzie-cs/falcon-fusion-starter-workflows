@@ -1,0 +1,145 @@
+name: cloud-risk-daily-digest
+description: |
+  Sends a daily cloud security digest email every morning to keep your team informed
+  of what to review. Includes direct console links and a prioritized review checklist
+  covering Cloud Risks, IOM findings, posture coverage, and containers.
+
+  This is intentionally a "prompt + link" workflow rather than a data-pull workflow.
+  Falcon Cloud Security updates continuously — the digest directs analysts to the
+  right places in the console rather than attempting to summarize a static snapshot.
+
+  SETUP REQUIRED:
+    1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
+    2. Replace "cloud-sec@your-company.com" in the send_digest step
+    3. Adjust the schedule cron expression if you prefer a different time
+       Default: 8:00 AM UTC daily — format is standard 5-field cron: "M H * * *"
+    4. Test by clicking "Run on demand" before enabling
+    5. Enable the workflow
+
+  SCHEDULE REFERENCE (UTC):
+    "0 8 * * *"   — 8:00 AM UTC daily (default)
+    "0 13 * * *"  — 1:00 PM UTC daily
+    "0 8 * * 1"   — Monday mornings only (weekly digest)
+    "0 8 * * 1-5" — Weekdays only
+
+  PREREQUISITES:
+    - Falcon Cloud Security subscription
+    - At least one cloud account registered in Falcon Cloud Security
+    - Workflow Author role in Falcon
+
+  VERIFIED ACTION IDs:
+    - Send email:  07413ef9ba7c47bf5a242799f59902cc
+    - Print data:  aadbf530e35fc452a032f5f8acaaac2a
+
+provision_on_install: false
+
+trigger:
+    event: Schedule
+    schedule:
+        # ↓ CONFIGURE: Adjust schedule as needed — time is in UTC
+        time_cycle: "0 8 * * *"
+        tz: Etc/UTC
+    next:
+        - print_run_header
+
+actions:
+    print_run_header:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        properties:
+            text_data: >
+                [cloud-risk-daily-digest] Running scheduled digest at
+                ${data['trigger.execution_timestamp']}
+        version_constraint: ~1
+        next:
+            - send_digest
+
+    send_digest:
+        id: 07413ef9ba7c47bf5a242799f59902cc
+        properties:
+            to:
+                # ↓ CONFIGURE: Replace with your cloud security team's email address
+                - cloud-sec@your-company.com
+            subject: "[FALCON] Daily Cloud Security Digest — ${data['trigger.execution_timestamp']}"
+            msg: |
+                Good morning. Here is your daily Falcon Cloud Security review briefing.
+
+                ══════════════════════════════════════════════
+                  PRIORITY 1 — CLOUD RISKS (AWS)
+                ══════════════════════════════════════════════
+                Cloud Risks surface compound threats: combinations of misconfigurations,
+                vulnerabilities, and exposure that are more dangerous together than apart.
+
+                Review: https://falcon.crowdstrike.com/cloud-security/cloud-risks
+
+                Suggested filter:
+                  Status = Open | Severity = Critical or High | Last 24 hours
+
+                Key rules to watch for:
+                  • Publicly exposed compute with RCE vulnerabilities
+                  • Privileged identity with MFA disabled + unrotated credentials
+                  • Compute with IMDSv1 enabled + sensitive data access
+                  • Database publicly exposed to the internet + contains sensitive data
+
+                ══════════════════════════════════════════════
+                  PRIORITY 2 — IOM FINDINGS (MISCONFIGURATIONS)
+                ══════════════════════════════════════════════
+                Indicators of Misconfiguration (IOMs) catch individual cloud configuration
+                issues across AWS, Azure, and GCP before they become exploitable.
+
+                Review: https://falcon.crowdstrike.com/cloud-security/posture
+
+                Suggested filter:
+                  Severity = Critical or High | Created = Last 24 hours | Status = Open
+
+                ══════════════════════════════════════════════
+                  PRIORITY 3 — CLOUD POSTURE DASHBOARD
+                ══════════════════════════════════════════════
+                Check for coverage gaps and overall posture score changes.
+
+                Review: https://falcon.crowdstrike.com/cloud-security/overview
+
+                Look for:
+                  • Any newly registered or unregistered accounts
+                  • Coverage drops in monitored services
+                  • Posture score trend vs yesterday
+
+                ══════════════════════════════════════════════
+                  PRIORITY 4 — CONTAINERS & KUBERNETES
+                ══════════════════════════════════════════════
+                Runtime detections, drift events, and new image assessment findings.
+
+                Review: https://falcon.crowdstrike.com/cloud-security/containers
+
+                Look for:
+                  • New runtime detections in production namespaces
+                  • Drift detections (unexpected binary execution)
+                  • Critical/High image vulnerabilities in running containers
+
+                ══════════════════════════════════════════════
+                  QUICK REFERENCE — KEY CONSOLE LINKS
+                ══════════════════════════════════════════════
+                Cloud Risks:     https://falcon.crowdstrike.com/cloud-security/cloud-risks
+                IOM Posture:     https://falcon.crowdstrike.com/cloud-security/posture
+                Dashboard:       https://falcon.crowdstrike.com/cloud-security/overview
+                Asset Inventory: https://falcon.crowdstrike.com/cloud-security/assets
+                Containers:      https://falcon.crowdstrike.com/cloud-security/containers
+                Fusion SOAR:     https://falcon.crowdstrike.com/workflow/fusion
+
+                ─────────────────────────────────────────────
+                Sent by Falcon Fusion SOAR | cloud-risk-daily-digest
+                Workflow schedule: 08:00 UTC daily
+                To edit: Fusion SOAR > Workflows > cloud-risk-daily-digest
+            msg_type: "text"
+        version_constraint: ~1
+        next:
+            - log_digest_sent
+
+    log_digest_sent:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        properties:
+            text_data: >
+                [cloud-risk-daily-digest] Digest sent at
+                ${data['trigger.execution_timestamp']}
+        version_constraint: ~1
+
+output_fields: []

@@ -1,0 +1,100 @@
+name: cloud-risk-critical-alert
+description: |
+  Sends an email notification when Falcon Cloud Security detects a new Critical or High
+  severity cloud risk in your AWS environment. Cloud risks correlate findings like internet
+  exposure, unrotated credentials, RCE vulnerabilities, and over-permissioned identities
+  into compound risk signals.
+
+  SETUP REQUIRED:
+    1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
+    2. Replace "security-team@your-company.com" in the send_notification step
+    3. (Optional) Tighten the severity filter to Critical only if alert volume is too high
+    4. Test using Fusion SOAR's mock data feature, then Enable
+
+  PREREQUISITES:
+    - Falcon Cloud Security subscription (CNAPP, Proactive, or Cloud Security)
+    - At least one AWS account registered in Falcon Cloud Security
+
+  VERIFIED ACTION IDs:
+    - Send email:  07413ef9ba7c47bf5a242799f59902cc
+    - Print data:  aadbf530e35fc452a032f5f8acaaac2a
+
+provision_on_install: false
+
+trigger:
+    name: Cloud risk response
+    type: Cloud risk response
+    next:
+        - check_severity
+
+conditions:
+    check_severity:
+        next:
+            - send_notification
+        cel_expression: >
+            data['trigger.severity'] == 'Critical' ||
+            data['trigger.severity'] == 'High'
+        display:
+            - Risk is Critical or High severity
+        else:
+            - log_skipped
+
+actions:
+    send_notification:
+        id: 07413ef9ba7c47bf5a242799f59902cc
+        properties:
+            to:
+                # ↓ CONFIGURE: Replace with your security team's email address
+                - security-team@your-company.com
+            subject: "[FALCON CLOUD RISK] ${data['trigger.severity']}: ${data['trigger.name']}"
+            msg: |
+                Falcon Cloud Security has detected a new compound cloud risk.
+
+                ── RISK DETAILS ─────────────────────────────
+                Risk Name:       ${data['trigger.name']}
+                Severity:        ${data['trigger.severity']}
+                Cloud Provider:  ${data['trigger.cloud_provider']}
+                Cloud Account:   ${data['trigger.cloud_account_id']}
+                Region:          ${data['trigger.region']}
+                Resource ID:     ${data['trigger.resource_id']}
+                Detected At:     ${data['trigger.created_timestamp']}
+
+                ── WHY THIS MATTERS ─────────────────────────
+                Cloud risks surface dangerous combinations that look low-severity in
+                isolation — for example, a publicly exposed compute instance that ALSO
+                has an over-privileged identity and unrotated credentials.
+
+                ── NEXT STEPS ───────────────────────────────
+                1. Log in to the Falcon console
+                2. Navigate to Cloud Security > Cloud Risks
+                3. Filter by the resource ID above
+                4. Follow the guided remediation steps
+
+                Console: https://falcon.crowdstrike.com/cloud-security/cloud-risks
+                ─────────────────────────────────────────────
+                Sent by Falcon Fusion SOAR | cloud-risk-critical-alert
+            msg_type: "text"
+        version_constraint: ~1
+        next:
+            - log_sent
+
+    log_sent:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        properties:
+            text_data: >
+                [cloud-risk-critical-alert] Alert sent —
+                Risk: ${data['trigger.name']} |
+                Severity: ${data['trigger.severity']} |
+                Account: ${data['trigger.cloud_account_id']}
+        version_constraint: ~1
+
+    log_skipped:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        properties:
+            text_data: >
+                [cloud-risk-critical-alert] Low severity risk suppressed —
+                Risk: ${data['trigger.name']} |
+                Severity: ${data['trigger.severity']}
+        version_constraint: ~1
+
+output_fields: []

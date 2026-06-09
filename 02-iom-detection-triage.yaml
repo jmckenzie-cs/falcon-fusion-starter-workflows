@@ -1,7 +1,7 @@
 name: iom-detection-triage
 description: |
   Triages new Indicator of Misconfiguration (IOM) detections from Falcon Cloud Security.
-  Notifies the cloud security team with full context — policy, resource, account, region —
+  Notifies the cloud security team with full context — rule, resource, account, region —
   so they can investigate and remediate without hunting for details in the console.
 
   IOMs detect individual cloud misconfigurations like open S3 buckets, disabled MFA on
@@ -11,8 +11,13 @@ description: |
     1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
     2. Replace "cloud-sec@your-company.com" in the send_iom_alert step
     3. (Optional) Add a ServiceNow or Jira action after send_iom_alert to auto-create tickets
-    4. Adjust the severity filter — default is Medium and above
+    4. Adjust the severity filter — default is medium and above (values are lowercase)
     5. Test with mock data, then Enable
+
+  FIELD PATHS:
+    These are based on the documented /cloud-security-evaluations/entities/ioms/v1
+    API response structure. If any field fails validation, open the workflow canvas,
+    trigger a test execution, and use the Workflow Data panel to copy exact paths.
 
   PREREQUISITES:
     - Falcon Cloud Security subscription
@@ -31,15 +36,16 @@ trigger:
         - check_iom_severity
 
 conditions:
+    # Severity values from the IOM API are lowercase: critical, high, medium, low
     check_iom_severity:
         next:
             - send_iom_alert
         cel_expression: >
-            data['trigger.severity'] == 'Critical' ||
-            data['trigger.severity'] == 'High' ||
-            data['trigger.severity'] == 'Medium'
+            data['trigger.evaluation.severity'] == 'critical' ||
+            data['trigger.evaluation.severity'] == 'high' ||
+            data['trigger.evaluation.severity'] == 'medium'
         display:
-            - IOM severity is Medium or above
+            - IOM severity is medium or above
         else:
             - log_iom_skipped
 
@@ -50,27 +56,30 @@ actions:
             to:
                 # ↓ CONFIGURE: Replace with your cloud security team's email address
                 - cloud-sec@your-company.com
-            subject: "[FALCON IOM] ${data['trigger.severity']} — ${data['trigger.service']} | ${data['trigger.cloud_provider']} ${data['trigger.region']}"
+            subject: "[FALCON IOM] ${data['trigger.evaluation.severity']} — ${data['trigger.resource.service']} | ${data['trigger.cloud.provider']} ${data['trigger.cloud.region']}"
             msg: |
                 Falcon Cloud Security has detected a cloud misconfiguration (IOM).
 
                 ── FINDING DETAILS ──────────────────────────
-                Severity:        ${data['trigger.severity']}
-                Status:          ${data['trigger.status']}
-                Service:         ${data['trigger.service']}
-                Cloud Provider:  ${data['trigger.cloud_provider']}
-                Cloud Account:   ${data['trigger.cloud_account_id']}
-                Region:          ${data['trigger.region']}
-                Resource ID:     ${data['trigger.resource_id']}
-                Resource Type:   ${data['trigger.resource_type']}
-                First Detected:  ${data['trigger.created_timestamp']}
+                Rule:            ${data['trigger.evaluation.rule.name']}
+                Severity:        ${data['trigger.evaluation.severity']}
+                Status:          ${data['trigger.evaluation.status']}
+                Service:         ${data['trigger.resource.service']}
+                Resource Type:   ${data['trigger.resource.resource_type']}
+                Resource ID:     ${data['trigger.resource.resource_id']}
+                Cloud Provider:  ${data['trigger.cloud.provider']}
+                Cloud Account:   ${data['trigger.cloud.account_id']}
+                Region:          ${data['trigger.cloud.region']}
+                First Detected:  ${data['trigger.evaluation.first_detected']}
+
+                ── RESOURCE CONSOLE LINK ────────────────────
+                ${data['trigger.evaluation.url']}
 
                 ── REMEDIATION GUIDANCE ─────────────────────
-                Open this finding in the Falcon console to view step-by-step
-                remediation instructions. Filter by Resource ID to locate
-                the affected asset:
+                Open this finding in the Falcon console for step-by-step
+                remediation instructions:
 
-                Console: https://falcon.crowdstrike.com/cloud-security/posture
+                https://falcon.crowdstrike.com/cloud-security/posture
 
                 ─────────────────────────────────────────────
                 Sent by Falcon Fusion SOAR | iom-detection-triage
@@ -84,10 +93,11 @@ actions:
         properties:
             text_data: >
                 [iom-detection-triage] Alert sent —
-                Severity: ${data['trigger.severity']} |
-                Service: ${data['trigger.service']} |
-                Resource: ${data['trigger.resource_id']} |
-                Account: ${data['trigger.cloud_account_id']}
+                Rule: ${data['trigger.evaluation.rule.name']} |
+                Severity: ${data['trigger.evaluation.severity']} |
+                Service: ${data['trigger.resource.service']} |
+                Resource: ${data['trigger.resource.resource_id']} |
+                Account: ${data['trigger.cloud.account_id']}
         version_constraint: ~1
 
     log_iom_skipped:
@@ -95,8 +105,8 @@ actions:
         properties:
             text_data: >
                 [iom-detection-triage] Low severity IOM suppressed —
-                Severity: ${data['trigger.severity']} |
-                Service: ${data['trigger.service']}
+                Severity: ${data['trigger.evaluation.severity']} |
+                Service: ${data['trigger.resource.service']}
         version_constraint: ~1
 
 output_fields: []

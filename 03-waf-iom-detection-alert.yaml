@@ -6,51 +6,35 @@ description: |
   protection not enabled on a load balancer, WAF logging disabled, or WAF running in
   Detection mode instead of Prevention mode.
 
-  This workflow uses the IOM detection trigger, NOT a Next-Gen SIEM detection trigger.
-  It is purely a cloud posture / misconfiguration workflow.
-
   SETUP REQUIRED:
     1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
     2. Replace "security-team@your-company.com" in send_waf_iom_alert
-    3. Verify the WAF service names in the waf_service_filter condition match what
-       your Falcon tenant reports — see "FINDING WAF POLICY IDs" below
-    4. (Optional) Tighten severity filter — default is Medium and above
+    3. Verify the WAF service names in the waf_service_filter condition — see below
+    4. (Optional) Tighten severity filter — default is medium and above
     5. Test with mock data, then Enable
 
-  FINDING WAF POLICY IDs IN THE CONSOLE:
-    The exact service names and policy IDs are specific to your Falcon tenant's
-    registered cloud accounts. To discover them:
+  FINDING YOUR WAF SERVICE NAMES:
+    The resource.service field in IOM events uses short identifiers (e.g. "WAFv2", "ELB").
+    To find the exact values for your registered accounts:
+    1. Go to: Cloud Security > Rules and Policies > IOM Rules
+    2. Filter the Service column for WAF / WAFv2 / Application Gateway / Front Door
+    3. Note the exact strings shown — update waf_service_filter's cel_expression to match
 
-    1. Go to: Cloud Security > Rules and Policies > Rules > IOM Rules
-    2. Filter "Service" column for: WAF, WAFv2, Application Gateway, Front Door
-    3. Note the exact service name strings shown — use these in the waf_service_filter
-       condition's cel_expression below
-    4. To see active findings: Cloud Security > Indicators of Misconfiguration
-       Filter by Service = WAF / WAFv2 / Application Gateway
+  COMMON WAF SERVICE VALUES (verify against your tenant):
+    AWS:   "WAFv2", "WAF" (Classic v1), "WAF Regional"
+    Azure: "ApplicationGateway", "FrontDoor" (exact casing varies)
+    GCP:   "CloudArmor" or "Compute" (Cloud Armor policies are under Compute)
 
-  COMMON WAF IOMs THIS WORKFLOW CATCHES:
-    AWS:
-      - WAFv2 web ACL not associated with CloudFront distribution
-      - WAFv2 web ACL not associated with ALB / API Gateway / AppSync
-      - AWS WAF logging disabled on web ACL
-      - AWS WAF Classic (v1) in use — should migrate to WAFv2
-      - WAFv2 web ACL has no rules configured
-      - AWS Firewall Manager WAF policy not enabled
-
-    Azure:
-      - Application Gateway WAF not enabled (Detection or Prevention mode required)
-      - Application Gateway WAF running in Detection mode (Prevention mode recommended)
-      - Front Door WAF policy not in Prevention mode
-      - Azure WAF policy has no custom rules
-
-    GCP:
-      - Cloud Armor security policy not attached to backend service
-      - Cloud Armor policy has no rules beyond default allow
+  FIELD PATHS:
+    Based on the documented /cloud-security-evaluations/entities/ioms/v1 API response.
+    Nested structure: cloud.*, resource.*, evaluation.*
+    If any field fails validation, use the Workflow Data panel in the canvas editor
+    to copy the verified paths from a real execution.
 
   PREREQUISITES:
     - Falcon Cloud Security subscription (CNAPP, Proactive, or Cloud Security)
     - Cloud accounts registered in Falcon Cloud Security
-    - IOM rules enabled for WAF/WAFv2/Application Gateway services (enabled by default)
+    - IOM rules enabled for WAF-related services (enabled by default)
 
   VERIFIED ACTION IDs:
     - Send email:  07413ef9ba7c47bf5a242799f59902cc
@@ -65,34 +49,34 @@ trigger:
         - waf_service_filter
 
 conditions:
-    # Filters IOM detections to WAF-related services only.
-    # IMPORTANT: Verify these service name strings match your Falcon console.
-    # Navigate to: Cloud Security > Rules and Policies > IOM Rules
-    # and filter by the Service column to find the exact values for your accounts.
+    # Filters to WAF-related services only.
+    # Update these values to match what your Falcon tenant reports.
+    # Check: Cloud Security > Rules and Policies > IOM Rules > Service column
     waf_service_filter:
         next:
             - check_waf_iom_severity
         cel_expression: >
-            data['trigger.service'].contains('WAF') ||
-            data['trigger.service'].contains('WAFv2') ||
-            data['trigger.service'] == 'Application Gateway' ||
-            data['trigger.service'] == 'Front Door' ||
-            data['trigger.service'] == 'Cloud Armor' ||
-            data['trigger.service'] == 'Firewall Manager'
+            data['trigger.resource.service'].contains('WAF') ||
+            data['trigger.resource.service'].contains('Waf') ||
+            data['trigger.resource.service'] == 'ApplicationGateway' ||
+            data['trigger.resource.service'] == 'FrontDoor' ||
+            data['trigger.resource.service'] == 'CloudArmor' ||
+            data['trigger.resource.service'] == 'FirewallManager'
         display:
             - IOM is for a WAF-related service
         else:
             - log_non_waf_skipped
 
+    # Severity values from the IOM API are lowercase: critical, high, medium, low
     check_waf_iom_severity:
         next:
             - send_waf_iom_alert
         cel_expression: >
-            data['trigger.severity'] == 'Critical' ||
-            data['trigger.severity'] == 'High' ||
-            data['trigger.severity'] == 'Medium'
+            data['trigger.evaluation.severity'] == 'critical' ||
+            data['trigger.evaluation.severity'] == 'high' ||
+            data['trigger.evaluation.severity'] == 'medium'
         display:
-            - IOM severity is Medium or above
+            - IOM severity is medium or above
         else:
             - log_low_severity_skipped
 
@@ -103,42 +87,42 @@ actions:
             to:
                 # ↓ CONFIGURE: Replace with your security team's email address
                 - security-team@your-company.com
-            subject: "[FALCON WAF IOM] ${data['trigger.severity']} — ${data['trigger.service']} | ${data['trigger.cloud_provider']} ${data['trigger.region']}"
+            subject: "[FALCON WAF IOM] ${data['trigger.evaluation.severity']} — ${data['trigger.resource.service']} | ${data['trigger.cloud.provider']} ${data['trigger.cloud.region']}"
             msg: |
                 Falcon Cloud Security has detected a WAF misconfiguration (IOM).
                 A WAF that is misconfigured or missing leaves web-facing resources
                 unprotected against injection, XSS, and application-layer attacks.
 
                 ── MISCONFIGURATION DETAILS ─────────────────
-                Severity:        ${data['trigger.severity']}
-                Status:          ${data['trigger.status']}
-                Service:         ${data['trigger.service']}
-                Cloud Provider:  ${data['trigger.cloud_provider']}
-                Cloud Account:   ${data['trigger.cloud_account_id']}
-                Region:          ${data['trigger.region']}
-                Resource ID:     ${data['trigger.resource_id']}
-                Resource Type:   ${data['trigger.resource_type']}
-                First Detected:  ${data['trigger.created_timestamp']}
+                Rule:            ${data['trigger.evaluation.rule.name']}
+                Severity:        ${data['trigger.evaluation.severity']}
+                Status:          ${data['trigger.evaluation.status']}
+                Service:         ${data['trigger.resource.service']}
+                Resource Type:   ${data['trigger.resource.resource_type']}
+                Resource ID:     ${data['trigger.resource.resource_id']}
+                Cloud Provider:  ${data['trigger.cloud.provider']}
+                Cloud Account:   ${data['trigger.cloud.account_id']}
+                Region:          ${data['trigger.cloud.region']}
+                First Detected:  ${data['trigger.evaluation.first_detected']}
+
+                ── RESOURCE CONSOLE LINK ────────────────────
+                ${data['trigger.evaluation.url']}
 
                 ── WHAT THIS MEANS ──────────────────────────
-                The resource identified above either lacks WAF protection entirely,
-                has WAF configured in a weakened state (e.g. Detection mode only),
-                or has a WAF with no active rules — providing no real protection.
+                The resource above either lacks WAF protection, has WAF configured
+                in a weakened state (e.g. Detection mode only), or has a WAF with
+                no active rules — providing no real protection.
 
                 ── REMEDIATION ──────────────────────────────
-                Open the finding in the Falcon console for step-by-step remediation
-                guidance with links to the cloud provider's documentation:
+                Open this finding in the Falcon console for step-by-step guidance:
+                https://falcon.crowdstrike.com/cloud-security/posture
 
-                Console: https://falcon.crowdstrike.com/cloud-security/posture
-
-                Tip: Search by Resource ID or filter by Policy ID to find this finding.
-
-                ── COMMON FIXES BY SERVICE ──────────────────
-                AWS WAFv2:          Associate web ACL with ALB / CloudFront / API GW
-                AWS WAF logging:    Enable logging to S3 or CloudWatch on the web ACL
-                Azure App Gateway:  Switch WAF policy from Detection to Prevention mode
-                Azure Front Door:   Attach a WAF policy in Prevention mode
-                GCP Cloud Armor:    Attach a security policy to the backend service
+                Common fixes by service:
+                  AWS WAFv2:          Associate a web ACL with the affected resource
+                  AWS WAF logging:    Enable logging to S3 or CloudWatch on the web ACL
+                  Azure App Gateway:  Switch WAF policy from Detection to Prevention mode
+                  Azure Front Door:   Attach a WAF policy in Prevention mode
+                  GCP Cloud Armor:    Attach a security policy to the backend service
 
                 ─────────────────────────────────────────────
                 Sent by Falcon Fusion SOAR | waf-iom-detection-alert
@@ -152,10 +136,11 @@ actions:
         properties:
             text_data: >
                 [waf-iom-detection-alert] Alert sent —
-                Service: ${data['trigger.service']} |
-                Severity: ${data['trigger.severity']} |
-                Resource: ${data['trigger.resource_id']} |
-                Account: ${data['trigger.cloud_account_id']}
+                Rule: ${data['trigger.evaluation.rule.name']} |
+                Service: ${data['trigger.resource.service']} |
+                Severity: ${data['trigger.evaluation.severity']} |
+                Resource: ${data['trigger.resource.resource_id']} |
+                Account: ${data['trigger.cloud.account_id']}
         version_constraint: ~1
 
     log_low_severity_skipped:
@@ -163,8 +148,8 @@ actions:
         properties:
             text_data: >
                 [waf-iom-detection-alert] Low severity WAF IOM suppressed —
-                Service: ${data['trigger.service']} |
-                Severity: ${data['trigger.severity']}
+                Service: ${data['trigger.resource.service']} |
+                Severity: ${data['trigger.evaluation.severity']}
         version_constraint: ~1
 
     log_non_waf_skipped:
@@ -172,8 +157,8 @@ actions:
         properties:
             text_data: >
                 [waf-iom-detection-alert] IOM skipped — not a WAF service:
-                Service: ${data['trigger.service']} |
-                Severity: ${data['trigger.severity']}
+                Service: ${data['trigger.resource.service']} |
+                Severity: ${data['trigger.evaluation.severity']}
         version_constraint: ~1
 
 output_fields: []

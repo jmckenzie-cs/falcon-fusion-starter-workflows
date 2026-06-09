@@ -28,8 +28,10 @@ description: |
 trigger:
     next:
         - risk_is_critical_or_high_severity
+    event: CloudRisk
     name: Cloud risk
-    type: On demand
+    type: Signal
+    version_constraint: ~1
 actions:
     log_sent:
         id: aadbf530e35fc452a032f5f8acaaac2a

@@ -44,35 +44,13 @@ description: |
       - Print data:  aadbf530e35fc452a032f5f8acaaac2a
 trigger:
     next:
-        - iom_is_for_a_waf_related_service
-    name: Cloud security assessment
-    type: On demand
+        - data39trigger_cloudsecurityassessment_cloudservicename39_contains39waf39__data39trigger_cloudsecurit
+    event: CloudSecurityAssessment/Configuration
+    name: Cloud security assessment > Configuration (IOM) configuration
+    type: Signal
+    version_constraint: ~1
 actions:
-    log_low_severity_skipped:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        default_name: Print data
-        name: Print data
-        properties:
-            text_data: |
-                [waf-iom-detection-alert] Low severity WAF IOM suppressed — Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | Severity: ${data['Trigger.CloudSecurityAssessment.Severity']}
-        version_constraint: ~1
-    log_non_waf_skipped:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        default_name: Print data
-        name: Print data
-        properties:
-            text_data: |
-                [waf-iom-detection-alert] IOM skipped — not a WAF service: Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | Severity: ${data['Trigger.CloudSecurityAssessment.Severity']}
-        version_constraint: ~1
-    log_waf_iom_alerted:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        default_name: Print data
-        name: Print data
-        properties:
-            text_data: |
-                [waf-iom-detection-alert] Alert sent — Policy: ${data['Trigger.CloudSecurityAssessment.PolicyStatement']} | Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | Severity: ${data['Trigger.CloudSecurityAssessment.Severity']} | Provider: ${data['Trigger.CloudSecurityAssessment.CloudProvider']}
-        version_constraint: ~1
-    send_waf_iom_alert:
+    SendEmail:
         id: 07413ef9ba7c47bf5a242799f59902cc
         default_name: Send email
         name: Send email
@@ -86,7 +64,7 @@ actions:
 
                 ── MISCONFIGURATION DETAILS ─────────────────
                 Policy:          ${data['Trigger.CloudSecurityAssessment.PolicyStatement']}
-                Policy ID:       ${data['Trigger.CloudSecurityAssessment.PolicyID']}
+                Policy ID:       ${data['Trigger.CloudSecurityAssessment.Policy']}
                 Severity:        ${data['Trigger.CloudSecurityAssessment.Severity']}
                 Disposition:     ${data['Trigger.CloudSecurityAssessment.Disposition']}
                 Service:         ${data['Trigger.CloudSecurityAssessment.CloudServiceName']}
@@ -115,19 +93,44 @@ actions:
             subject: '[FALCON WAF IOM] ${data[''Trigger.CloudSecurityAssessment.Severity'']} — ${data[''Trigger.CloudSecurityAssessment.CloudServiceName'']} | ${data[''Trigger.CloudSecurityAssessment.CloudProvider'']}'
             to: []
         version_constraint: ~1
+    log_low_severity_skipped:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        properties:
+            text_data: |
+                [waf-iom-detection-alert] Low severity WAF IOM suppressed — Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | Severity: ${data['Trigger.CloudSecurityAssessment.Severity']}
+        version_constraint: ~1
+    log_non_waf_skipped:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        properties:
+            text_data: |
+                [waf-iom-detection-alert] IOM skipped — not a WAF service: Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | Severity: ${data['Trigger.CloudSecurityAssessment.Severity']}
+        version_constraint: ~1
+    log_waf_iom_alerted:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        properties:
+            text_data: |
+                [waf-iom-detection-alert] Alert sent — Policy: ${data['Trigger.CloudSecurityAssessment.PolicyStatement']} | Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | Severity: ${data['Trigger.CloudSecurityAssessment.Severity']} | Provider: ${data['Trigger.CloudSecurityAssessment.CloudProvider']}
+        version_constraint: ~1
 conditions:
-    iom_is_for_a_waf_related_service:
+    data39trigger_cloudsecurityassessment_cloudservicename39_contains39waf39__data39trigger_cloudsecurit:
         next:
             - iom_severity_is_medium_or_above
         cel_expression: |
             data['Trigger.CloudSecurityAssessment.CloudServiceName'].contains('WAF') || data['Trigger.CloudSecurityAssessment.CloudServiceName'].contains('Waf') || data['Trigger.CloudSecurityAssessment.CloudServiceName'] == 'ApplicationGateway' || data['Trigger.CloudSecurityAssessment.CloudServiceName'] == 'FrontDoor' || data['Trigger.CloudSecurityAssessment.CloudServiceName'] == 'CloudArmor' || data['Trigger.CloudSecurityAssessment.CloudServiceName'] == 'FirewallManager'
         display:
-            - IOM is for a WAF-related service
+            - |
+              data[&#39;Trigger.CloudSecurityAssessment.CloudServiceName&#39;].contains(&#39;WAF&#39;) || data[&#39;Trigger.CloudSecurityAssessment.CloudServiceName&#39;].contains(&#39;Waf&#39;) || data[&#39;Trigger.CloudSecurityAssessment.CloudServiceName&#39;] == &#39;ApplicationGateway&#39; || data[&#39;Trigger.CloudSecurityAssessment.CloudServiceName&#39;] == &#39;FrontDoor&#39; || data[&#39;Trigger.CloudSecurityAssessment.CloudServiceName&#39;] == &#39;CloudArmor&#39; || data[&#39;Trigger.CloudSecurityAssessment.CloudServiceName&#39;] == &#39;FirewallManager&#39;
         else:
             - log_non_waf_skipped
     iom_severity_is_medium_or_above:
         next:
-            - send_waf_iom_alert
+            - SendEmail
         cel_expression: |
             data['Trigger.CloudSecurityAssessment.Severity'] == 'Critical' || data['Trigger.CloudSecurityAssessment.Severity'] == 'High' || data['Trigger.CloudSecurityAssessment.Severity'] == 'Medium'
         display:

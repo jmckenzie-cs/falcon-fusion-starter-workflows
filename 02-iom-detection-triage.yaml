@@ -37,26 +37,12 @@ description: |
 trigger:
     next:
         - iom_severity_is_medium_or_above
-    name: Cloud security assessment
-    type: On demand
+    event: CloudSecurityAssessment/Configuration
+    name: Cloud security assessment > Configuration (IOM) configuration
+    type: Signal
+    version_constraint: ~1
 actions:
-    log_iom_alerted:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        default_name: Print data
-        name: Print data
-        properties:
-            text_data: |
-                [iom-detection-triage] Alert sent — Policy: ${data['Trigger.CloudSecurityAssessment.PolicyStatement']} | Severity: ${data['Trigger.CloudSecurityAssessment.Severity']} | Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | Provider: ${data['Trigger.CloudSecurityAssessment.CloudProvider']}
-        version_constraint: ~1
-    log_iom_skipped:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        default_name: Print data
-        name: Print data
-        properties:
-            text_data: |
-                [iom-detection-triage] Low severity IOM suppressed — Severity: ${data['Trigger.CloudSecurityAssessment.Severity']} | Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']}
-        version_constraint: ~1
-    send_iom_alert:
+    SendEmail:
         id: 07413ef9ba7c47bf5a242799f59902cc
         default_name: Send email
         name: Send email
@@ -68,7 +54,7 @@ actions:
 
                 ── FINDING DETAILS ──────────────────────────
                 Policy:          ${data['Trigger.CloudSecurityAssessment.PolicyStatement']}
-                Policy ID:       ${data['Trigger.CloudSecurityAssessment.PolicyID']}
+                Policy ID:       ${data['Trigger.CloudSecurityAssessment.Policy']}
                 Severity:        ${data['Trigger.CloudSecurityAssessment.Severity']}
                 Disposition:     ${data['Trigger.CloudSecurityAssessment.Disposition']}
                 Service:         ${data['Trigger.CloudSecurityAssessment.CloudServiceName']}
@@ -87,10 +73,26 @@ actions:
             subject: '[FALCON IOM] ${data[''Trigger.CloudSecurityAssessment.Severity'']} — ${data[''Trigger.CloudSecurityAssessment.CloudServiceName'']} | ${data[''Trigger.CloudSecurityAssessment.CloudProvider'']}'
             to: []
         version_constraint: ~1
+    log_iom_alerted:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        properties:
+            text_data: |
+                [iom-detection-triage] Alert sent — Policy: ${data['Trigger.CloudSecurityAssessment.PolicyStatement']} | Severity: ${data['Trigger.CloudSecurityAssessment.Severity']} | Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']} | Provider: ${data['Trigger.CloudSecurityAssessment.CloudProvider']}
+        version_constraint: ~1
+    log_iom_skipped:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        properties:
+            text_data: |
+                [iom-detection-triage] Low severity IOM suppressed — Severity: ${data['Trigger.CloudSecurityAssessment.Severity']} | Service: ${data['Trigger.CloudSecurityAssessment.CloudServiceName']}
+        version_constraint: ~1
 conditions:
     iom_severity_is_medium_or_above:
         next:
-            - send_iom_alert
+            - SendEmail
         cel_expression: |
             data['Trigger.CloudSecurityAssessment.Severity'] == 'Critical' || data['Trigger.CloudSecurityAssessment.Severity'] == 'High' || data['Trigger.CloudSecurityAssessment.Severity'] == 'Medium'
         display:

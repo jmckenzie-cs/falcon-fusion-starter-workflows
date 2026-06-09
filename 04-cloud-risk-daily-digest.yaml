@@ -45,25 +45,7 @@ trigger:
         skip_concurrent: false
     type: Scheduled
 actions:
-    log_digest_sent:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        default_name: Print data
-        name: Print data
-        properties:
-            text_data: |
-                [cloud-risk-daily-digest] Digest sent at ${data['Trigger.ObservedTime']}
-        version_constraint: ~1
-    print_run_header:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        default_name: Print data
-        name: Print data
-        next:
-            - send_digest
-        properties:
-            text_data: |
-                [cloud-risk-daily-digest] Running scheduled digest at ${data['Trigger.ObservedTime']}
-        version_constraint: ~1
-    send_digest:
+    SendEmail:
         id: 07413ef9ba7c47bf5a242799f59902cc
         default_name: Send email
         name: Send email
@@ -142,4 +124,22 @@ actions:
             msg_type: text
             subject: '[FALCON] Daily Cloud Security Digest — ${data[''Trigger.ObservedTime'']}'
             to: []
+        version_constraint: ~1
+    log_digest_sent:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        properties:
+            text_data: |
+                [cloud-risk-daily-digest] Digest sent at ${data['Trigger.ObservedTime']}
+        version_constraint: ~1
+    print_run_header:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        next:
+            - SendEmail
+        properties:
+            text_data: |
+                [cloud-risk-daily-digest] Running scheduled digest at ${data['Trigger.ObservedTime']}
         version_constraint: ~1

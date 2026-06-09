@@ -45,7 +45,6 @@ provision_on_install: false
 
 trigger:
     name: Cloud security assessment
-    type: Cloud security assessment
     next:
         - waf_service_filter
 

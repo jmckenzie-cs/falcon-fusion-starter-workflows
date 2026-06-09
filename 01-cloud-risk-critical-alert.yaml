@@ -27,8 +27,7 @@ description: |
 provision_on_install: false
 
 trigger:
-    name: Cloud risk response
-    type: Cloud risk response
+    name: Cloud risk
     next:
         - check_severity
 

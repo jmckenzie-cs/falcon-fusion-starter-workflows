@@ -37,7 +37,6 @@ provision_on_install: false
 
 trigger:
     name: Cloud security assessment
-    type: Cloud security assessment
     next:
         - check_iom_severity
 

@@ -11,6 +11,13 @@ description: |
     3. (Optional) Tighten the severity filter to Critical only if alert volume is too high
     4. Test using Fusion SOAR's mock data feature, then Enable
 
+  FIELD PATHS:
+    Based on the /cloud-security-risks/combined/cloud-risks/v1 API response.
+    Cloud Risk trigger fields are flat (not nested like IOM fields).
+    Severity values are UPPERCASE: CRITICAL, HIGH, MEDIUM, LOW
+    If any field fails validation, use the Workflow Data panel in the canvas editor
+    to copy the verified paths from a real execution.
+
   PREREQUISITES:
     - Falcon Cloud Security subscription (CNAPP, Proactive, or Cloud Security)
     - At least one AWS account registered in Falcon Cloud Security
@@ -28,12 +35,13 @@ trigger:
         - check_severity
 
 conditions:
+    # Severity values from the Cloud Risk API are UPPERCASE: CRITICAL, HIGH, MEDIUM, LOW
     check_severity:
         next:
             - send_notification
         cel_expression: >
-            data['trigger.severity'] == 'Critical' ||
-            data['trigger.severity'] == 'High'
+            data['trigger.severity'] == 'CRITICAL' ||
+            data['trigger.severity'] == 'HIGH'
         display:
             - Risk is Critical or High severity
         else:
@@ -46,18 +54,21 @@ actions:
             to:
                 # ↓ CONFIGURE: Replace with your security team's email address
                 - security-team@your-company.com
-            subject: "[FALCON CLOUD RISK] ${data['trigger.severity']}: ${data['trigger.name']}"
+            subject: "[FALCON CLOUD RISK] ${data['trigger.severity']}: ${data['trigger.rule_name']}"
             msg: |
                 Falcon Cloud Security has detected a new compound cloud risk.
 
                 ── RISK DETAILS ─────────────────────────────
-                Risk Name:       ${data['trigger.name']}
+                Risk Name:       ${data['trigger.rule_name']}
                 Severity:        ${data['trigger.severity']}
-                Cloud Provider:  ${data['trigger.cloud_provider']}
-                Cloud Account:   ${data['trigger.cloud_account_id']}
-                Region:          ${data['trigger.region']}
-                Resource ID:     ${data['trigger.resource_id']}
-                Detected At:     ${data['trigger.created_timestamp']}
+                Status:          ${data['trigger.status']}
+                Cloud Provider:  ${data['trigger.provider']}
+                Cloud Account:   ${data['trigger.account_id']}
+                Region:          ${data['trigger.asset_region']}
+                Asset Name:      ${data['trigger.asset_name']}
+                Asset ID:        ${data['trigger.asset_id']}
+                Asset Type:      ${data['trigger.asset_type']}
+                First Seen:      ${data['trigger.first_seen']}
 
                 ── WHY THIS MATTERS ─────────────────────────
                 Cloud risks surface dangerous combinations that look low-severity in
@@ -67,7 +78,7 @@ actions:
                 ── NEXT STEPS ───────────────────────────────
                 1. Log in to the Falcon console
                 2. Navigate to Cloud Security > Cloud Risks
-                3. Filter by the resource ID above
+                3. Filter by the asset ID above
                 4. Follow the guided remediation steps
 
                 Console: https://falcon.crowdstrike.com/cloud-security/cloud-risks
@@ -83,9 +94,10 @@ actions:
         properties:
             text_data: >
                 [cloud-risk-critical-alert] Alert sent —
-                Risk: ${data['trigger.name']} |
+                Rule: ${data['trigger.rule_name']} |
                 Severity: ${data['trigger.severity']} |
-                Account: ${data['trigger.cloud_account_id']}
+                Account: ${data['trigger.account_id']} |
+                Asset: ${data['trigger.asset_id']}
         version_constraint: ~1
 
     log_skipped:
@@ -93,7 +105,7 @@ actions:
         properties:
             text_data: >
                 [cloud-risk-critical-alert] Low severity risk suppressed —
-                Risk: ${data['trigger.name']} |
+                Rule: ${data['trigger.rule_name']} |
                 Severity: ${data['trigger.severity']}
         version_constraint: ~1
 

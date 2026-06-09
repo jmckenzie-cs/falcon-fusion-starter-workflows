@@ -103,14 +103,13 @@ actions:
             to:
                 # ↓ CONFIGURE: Replace with your security team's email address
                 - security-team@your-company.com
-            subject: "[FALCON WAF IOM] ${data['trigger.severity']} — ${data['trigger.policy_id']} | ${data['trigger.service']} | ${data['trigger.cloud_provider']}"
+            subject: "[FALCON WAF IOM] ${data['trigger.severity']} — ${data['trigger.service']} | ${data['trigger.cloud_provider']} ${data['trigger.region']}"
             msg: |
                 Falcon Cloud Security has detected a WAF misconfiguration (IOM).
                 A WAF that is misconfigured or missing leaves web-facing resources
                 unprotected against injection, XSS, and application-layer attacks.
 
                 ── MISCONFIGURATION DETAILS ─────────────────
-                Policy ID:       ${data['trigger.policy_id']}
                 Severity:        ${data['trigger.severity']}
                 Status:          ${data['trigger.status']}
                 Service:         ${data['trigger.service']}
@@ -153,7 +152,6 @@ actions:
         properties:
             text_data: >
                 [waf-iom-detection-alert] Alert sent —
-                Policy: ${data['trigger.policy_id']} |
                 Service: ${data['trigger.service']} |
                 Severity: ${data['trigger.severity']} |
                 Resource: ${data['trigger.resource_id']} |
@@ -165,7 +163,6 @@ actions:
         properties:
             text_data: >
                 [waf-iom-detection-alert] Low severity WAF IOM suppressed —
-                Policy: ${data['trigger.policy_id']} |
                 Service: ${data['trigger.service']} |
                 Severity: ${data['trigger.severity']}
         version_constraint: ~1
@@ -175,7 +172,8 @@ actions:
         properties:
             text_data: >
                 [waf-iom-detection-alert] IOM skipped — not a WAF service:
-                ${data['trigger.policy_id']} | Service: ${data['trigger.service']}
+                Service: ${data['trigger.service']} |
+                Severity: ${data['trigger.severity']}
         version_constraint: ~1
 
 output_fields: []

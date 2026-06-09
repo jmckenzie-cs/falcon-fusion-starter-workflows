@@ -1,57 +1,59 @@
+# This is an exported workflow. Editing this file is not recommended.
+
 name: cloud-risk-critical-alert
 description: |
-  Sends an email notification when Falcon Cloud Security detects a new Critical or High
-  severity cloud risk in your AWS environment. Cloud risks correlate findings like internet
-  exposure, unrotated credentials, RCE vulnerabilities, and over-permissioned identities
-  into compound risk signals.
+    Sends an email notification when Falcon Cloud Security detects a new Critical or High
+    severity cloud risk in your AWS environment. Cloud risks correlate findings like internet
+    exposure, unrotated credentials, RCE vulnerabilities, and over-permissioned identities
+    into compound risk signals.
 
-  SETUP REQUIRED:
-    1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
-    2. Replace "security-team@your-company.com" in the send_notification step
-    3. (Optional) Tighten the severity filter to Critical only if alert volume is too high
-    4. Test using Fusion SOAR's mock data feature, then Enable
+    SETUP REQUIRED:
+      1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
+      2. Replace "security-team@your-company.com" in the send_notification step
+      3. (Optional) Tighten the severity filter to Critical only if alert volume is too high
+      4. Test using Fusion SOAR's mock data feature, then Enable
 
-  FIELD PATHS (verified via /workflows/combined/triggers/v1 API):
-    All Cloud Risk trigger fields use Trigger.CloudRisk.* (PascalCase, capital T).
-    Severity values: Critical, High, Medium, Low (Title Case)
-    Status values: Open, Resolved, Suppressed
+    FIELD PATHS (verified via /workflows/combined/triggers/v1 API):
+      All Cloud Risk trigger fields use Trigger.CloudRisk.* (PascalCase, capital T).
+      Severity values: Critical, High, Medium, Low (Title Case)
+      Status values: Open, Resolved, Suppressed
 
-  PREREQUISITES:
-    - Falcon Cloud Security subscription (CNAPP, Proactive, or Cloud Security)
-    - At least one AWS account registered in Falcon Cloud Security
+    PREREQUISITES:
+      - Falcon Cloud Security subscription (CNAPP, Proactive, or Cloud Security)
+      - At least one AWS account registered in Falcon Cloud Security
 
-  VERIFIED ACTION IDs:
-    - Send email:  07413ef9ba7c47bf5a242799f59902cc
-    - Print data:  aadbf530e35fc452a032f5f8acaaac2a
-
-provision_on_install: false
-
+    VERIFIED ACTION IDs:
+      - Send email:  07413ef9ba7c47bf5a242799f59902cc
+      - Print data:  aadbf530e35fc452a032f5f8acaaac2a
 trigger:
-    name: Cloud risk
     next:
-        - check_severity
-
-conditions:
-    # Severity values: Critical, High, Medium, Low (Title Case)
-    check_severity:
-        next:
-            - send_notification
-        cel_expression: >
-            data['Trigger.CloudRisk.Severity'] == 'Critical' ||
-            data['Trigger.CloudRisk.Severity'] == 'High'
-        display:
-            - Risk is Critical or High severity
-        else:
-            - log_skipped
-
+        - risk_is_critical_or_high_severity
+    name: Cloud risk
+    type: On demand
 actions:
+    log_sent:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        properties:
+            text_data: |
+                [cloud-risk-critical-alert] Alert sent — Rule: ${data['Trigger.CloudRisk.RuleName']} | Severity: ${data['Trigger.CloudRisk.Severity']} | Account: ${data['Trigger.CloudRisk.Asset.CloudAccountId']} | Asset: ${data['Trigger.CloudRisk.Asset.ID']}
+        version_constraint: ~1
+    log_skipped:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        properties:
+            text_data: |
+                [cloud-risk-critical-alert] Low severity risk suppressed — Rule: ${data['Trigger.CloudRisk.RuleName']} | Severity: ${data['Trigger.CloudRisk.Severity']}
+        version_constraint: ~1
     send_notification:
         id: 07413ef9ba7c47bf5a242799f59902cc
+        default_name: Send email
+        name: Send email
+        next:
+            - log_sent
         properties:
-            to:
-                # ↓ CONFIGURE: Replace with your security team's email address
-                - security-team@your-company.com
-            subject: "[FALCON CLOUD RISK] ${data['Trigger.CloudRisk.Severity']}: ${data['Trigger.CloudRisk.RuleName']}"
             msg: |
                 Falcon Cloud Security has detected a new compound cloud risk.
 
@@ -87,29 +89,17 @@ actions:
                 Console: https://falcon.crowdstrike.com/cloud-security/cloud-risks
                 ─────────────────────────────────────────────
                 Sent by Falcon Fusion SOAR | cloud-risk-critical-alert
-            msg_type: "text"
+            msg_type: text
+            subject: '[FALCON CLOUD RISK] ${data[''Trigger.CloudRisk.Severity'']}: ${data[''Trigger.CloudRisk.RuleName'']}'
+            to: []
         version_constraint: ~1
+conditions:
+    risk_is_critical_or_high_severity:
         next:
-            - log_sent
-
-    log_sent:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        properties:
-            text_data: >
-                [cloud-risk-critical-alert] Alert sent —
-                Rule: ${data['Trigger.CloudRisk.RuleName']} |
-                Severity: ${data['Trigger.CloudRisk.Severity']} |
-                Account: ${data['Trigger.CloudRisk.Asset.CloudAccountId']} |
-                Asset: ${data['Trigger.CloudRisk.Asset.ID']}
-        version_constraint: ~1
-
-    log_skipped:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        properties:
-            text_data: >
-                [cloud-risk-critical-alert] Low severity risk suppressed —
-                Rule: ${data['Trigger.CloudRisk.RuleName']} |
-                Severity: ${data['Trigger.CloudRisk.Severity']}
-        version_constraint: ~1
-
-output_fields: []
+            - send_notification
+        cel_expression: |
+            data['Trigger.CloudRisk.Severity'] == 'Critical' || data['Trigger.CloudRisk.Severity'] == 'High'
+        display:
+            - Risk is Critical or High severity
+        else:
+            - log_skipped

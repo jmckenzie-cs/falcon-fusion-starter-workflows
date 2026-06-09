@@ -1,65 +1,75 @@
+# This is an exported workflow. Editing this file is not recommended.
+
 name: cloud-risk-daily-digest
 description: |
-  Sends a daily cloud security digest email every morning to keep your team informed
-  of what to review. Includes direct console links and a prioritized review checklist
-  covering Cloud Risks, IOM findings, posture coverage, and containers.
+    Sends a daily cloud security digest email every morning to keep your team informed
+    of what to review. Includes direct console links and a prioritized review checklist
+    covering Cloud Risks, IOM findings, posture coverage, and containers.
 
-  This is intentionally a "prompt + link" workflow rather than a data-pull workflow.
-  Falcon Cloud Security updates continuously — the digest directs analysts to the
-  right places in the console rather than attempting to summarize a static snapshot.
+    This is intentionally a "prompt + link" workflow rather than a data-pull workflow.
+    Falcon Cloud Security updates continuously — the digest directs analysts to the
+    right places in the console rather than attempting to summarize a static snapshot.
 
-  SETUP REQUIRED:
-    1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
-    2. Replace "cloud-sec@your-company.com" in the send_digest step
-    3. Adjust the schedule cron expression if you prefer a different time
-       Default: 8:00 AM UTC daily — format is standard 5-field cron: "M H * * *"
-    4. Test by clicking "Run on demand" before enabling
-    5. Enable the workflow
+    SETUP REQUIRED:
+      1. Import into Falcon > Fusion SOAR > Workflows > Create workflow
+      2. Replace "cloud-sec@your-company.com" in the send_digest step
+      3. Adjust the schedule cron expression if you prefer a different time
+         Default: 8:00 AM UTC daily — format is standard 5-field cron: "M H * * *"
+      4. Test by clicking "Run on demand" before enabling
+      5. Enable the workflow
 
-  SCHEDULE REFERENCE (UTC):
-    "0 8 * * *"   — 8:00 AM UTC daily (default)
-    "0 13 * * *"  — 1:00 PM UTC daily
-    "0 8 * * 1"   — Monday mornings only (weekly digest)
-    "0 8 * * 1-5" — Weekdays only
+    SCHEDULE REFERENCE (UTC):
+      "0 8 * * *"   — 8:00 AM UTC daily (default)
+      "0 13 * * *"  — 1:00 PM UTC daily
+      "0 8 * * 1"   — Monday mornings only (weekly digest)
+      "0 8 * * 1-5" — Weekdays only
 
-  PREREQUISITES:
-    - Falcon Cloud Security subscription
-    - At least one cloud account registered in Falcon Cloud Security
-    - Workflow Author role in Falcon
+    PREREQUISITES:
+      - Falcon Cloud Security subscription
+      - At least one cloud account registered in Falcon Cloud Security
+      - Workflow Author role in Falcon
 
-  VERIFIED ACTION IDs:
-    - Send email:  07413ef9ba7c47bf5a242799f59902cc
-    - Print data:  aadbf530e35fc452a032f5f8acaaac2a
-
-provision_on_install: false
-
+    VERIFIED ACTION IDs:
+      - Send email:  07413ef9ba7c47bf5a242799f59902cc
+      - Print data:  aadbf530e35fc452a032f5f8acaaac2a
 trigger:
-    event: Schedule
-    schedule:
-        # ↓ CONFIGURE: Adjust schedule as needed — time is in UTC
-        time_cycle: "0 8 * * *"
-        tz: Etc/UTC
     next:
         - print_run_header
-
+    event: Schedule
+    name: Scheduled
+    schedule:
+        time_cycle: 0 8 * * *
+        start_date: ""
+        end_date: ""
+        tz: Etc/UTC
+        skip_concurrent: false
+    type: Scheduled
 actions:
+    log_digest_sent:
+        id: aadbf530e35fc452a032f5f8acaaac2a
+        default_name: Print data
+        name: Print data
+        properties:
+            text_data: |
+                [cloud-risk-daily-digest] Digest sent at ${data['Trigger.ObservedTime']}
+        version_constraint: ~1
     print_run_header:
         id: aadbf530e35fc452a032f5f8acaaac2a
-        properties:
-            text_data: >
-                [cloud-risk-daily-digest] Running scheduled digest at
-                ${data['Trigger.ObservedTime']}
-        version_constraint: ~1
+        default_name: Print data
+        name: Print data
         next:
             - send_digest
-
+        properties:
+            text_data: |
+                [cloud-risk-daily-digest] Running scheduled digest at ${data['Trigger.ObservedTime']}
+        version_constraint: ~1
     send_digest:
         id: 07413ef9ba7c47bf5a242799f59902cc
+        default_name: Send email
+        name: Send email
+        next:
+            - log_digest_sent
         properties:
-            to:
-                # ↓ CONFIGURE: Replace with your cloud security team's email address
-                - cloud-sec@your-company.com
-            subject: "[FALCON] Daily Cloud Security Digest — ${data['Trigger.ObservedTime']}"
             msg: |
                 Good morning. Here is your daily Falcon Cloud Security review briefing.
 
@@ -129,17 +139,7 @@ actions:
                 Sent by Falcon Fusion SOAR | cloud-risk-daily-digest
                 Workflow schedule: 08:00 UTC daily
                 To edit: Fusion SOAR > Workflows > cloud-risk-daily-digest
-            msg_type: "text"
+            msg_type: text
+            subject: '[FALCON] Daily Cloud Security Digest — ${data[''Trigger.ObservedTime'']}'
+            to: []
         version_constraint: ~1
-        next:
-            - log_digest_sent
-
-    log_digest_sent:
-        id: aadbf530e35fc452a032f5f8acaaac2a
-        properties:
-            text_data: >
-                [cloud-risk-daily-digest] Digest sent at
-                ${data['Trigger.ObservedTime']}
-        version_constraint: ~1
-
-output_fields: []

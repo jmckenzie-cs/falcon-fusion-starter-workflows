@@ -48,7 +48,7 @@ actions:
         properties:
             text_data: >
                 [cloud-risk-daily-digest] Running scheduled digest at
-                ${data['trigger.execution_timestamp']}
+                ${data['Trigger.ObservedTime']}
         version_constraint: ~1
         next:
             - send_digest
@@ -59,7 +59,7 @@ actions:
             to:
                 # ↓ CONFIGURE: Replace with your cloud security team's email address
                 - cloud-sec@your-company.com
-            subject: "[FALCON] Daily Cloud Security Digest — ${data['trigger.execution_timestamp']}"
+            subject: "[FALCON] Daily Cloud Security Digest — ${data['Trigger.ObservedTime']}"
             msg: |
                 Good morning. Here is your daily Falcon Cloud Security review briefing.
 
@@ -139,7 +139,7 @@ actions:
         properties:
             text_data: >
                 [cloud-risk-daily-digest] Digest sent at
-                ${data['trigger.execution_timestamp']}
+                ${data['Trigger.ObservedTime']}
         version_constraint: ~1
 
 output_fields: []
